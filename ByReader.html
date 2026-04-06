@@ -283,16 +283,23 @@
   select.tts-btn option { background: var(--surface); color: var(--text); }
   #tts-status { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
-  #tts-track {
-    flex: 1; height: 4px; background: var(--border); border-radius: 2px;
-    cursor: pointer; position: relative;
+  #tts-bar-row1 {
+    display: flex; align-items: center; gap: 10px; width: 100%;
   }
-  #tts-track:hover { height: 6px; }
+  #tts-bar-row2 {
+    display: flex; align-items: center; gap: 8px; width: 100%; flex-wrap: wrap;
+  }
+  #tts-track {
+    flex: 1; height: 8px; background: var(--border); border-radius: 4px;
+    cursor: pointer; position: relative; min-width: 80px;
+  }
+  #tts-track:hover { height: 10px; }
   #tts-fill {
-    height: 100%; background: var(--accent); border-radius: 2px;
+    height: 100%; background: var(--accent); border-radius: 4px;
     width: 0%; pointer-events: none; transition: width 0.3s linear;
   }
-  #tts-time { font-size: 11px; color: var(--text-faint); white-space: nowrap; min-width: 80px; text-align: center; }
+  #tts-time { font-size: 12px; color: var(--text-faint); white-space: nowrap; min-width: 80px; text-align: center; }
+  #tts-close-btn { margin-left: 4px; }
 </style>
 </head>
 <body class="theme-ivory">
@@ -365,24 +372,29 @@
 </div>
 
 <div id="tts-bar">
-  <button class="tts-btn" onclick="ttsSkip(-10)" title="10초 뒤로">◀ 10s</button>
-  <button class="tts-btn" id="tts-play-btn" onclick="ttsToggle()">▶</button>
-  <button class="tts-btn" onclick="ttsStop()">⏹</button>
-  <div id="tts-track" onclick="ttsSeek(event)">
-    <div id="tts-fill"></div>
+  <div id="tts-bar-row1">
+    <div id="tts-track" onclick="ttsSeek(event)">
+      <div id="tts-fill"></div>
+    </div>
+    <span id="tts-time">0:00 / 0:00</span>
+    <button class="tts-btn" id="tts-close-btn" onclick="ttsBarToggle()">✕</button>
   </div>
-  <span id="tts-time">0:00 / 0:00</span>
-  <span id="tts-status">음성 로딩 중...</span>
-  <select class="tts-btn" id="tts-voice-select" onchange="ttsVoiceChange()">
-    <option value="">기본 음성</option>
-  </select>
-  <select class="tts-btn" id="tts-rate-select" onchange="ttsRateChange(this.value)">
-    <option value="0.75">0.75×</option>
-    <option value="1" selected>1.0×</option>
-    <option value="1.25">1.25×</option>
-    <option value="1.5">1.5×</option>
-    <option value="2">2.0×</option>
-  </select>
+  <div id="tts-bar-row2">
+    <button class="tts-btn" onclick="ttsSkip(-10)">◀ 10s</button>
+    <button class="tts-btn" id="tts-play-btn" onclick="ttsToggle()">▶</button>
+    <button class="tts-btn" onclick="ttsStop()">⏹</button>
+    <span id="tts-status">음성 로딩 중...</span>
+    <select class="tts-btn" id="tts-voice-select" onchange="ttsVoiceChange()">
+      <option value="">기본 음성</option>
+    </select>
+    <select class="tts-btn" id="tts-rate-select" onchange="ttsRateChange(this.value)">
+      <option value="0.75">0.75×</option>
+      <option value="1" selected>1.0×</option>
+      <option value="1.25">1.25×</option>
+      <option value="1.5">1.5×</option>
+      <option value="2">2.0×</option>
+    </select>
+  </div>
 </div>
 
 <div id="main">
@@ -651,7 +663,18 @@
     const btn = document.getElementById('btn-settings');
     const visible = panel.classList.toggle('visible');
     btn.classList.toggle('active', visible);
-    if (visible) updateMobileSettingsPos();
+    if (visible) {
+      // TTS 바 닫기 (5번 문제)
+      const bar = document.getElementById('tts-bar');
+      if (bar.classList.contains('visible')) {
+        bar.classList.remove('visible');
+        document.getElementById('main').classList.remove('tts-active');
+        document.getElementById('btn-tts').classList.remove('active');
+        speechSynthesis.cancel(); ttsPlaying = false; clearInterval(ttsTimer);
+        ttsUpdateUI();
+      }
+      updateMobileSettingsPos();
+    }
   }
 
   // 모바일/데스크탑 슬라이더 동기화
@@ -760,48 +783,58 @@
     return speechSynthesis.getVoices().find(v => v.name === val) || null;
   }
 
-  let ttsResumeTimer = null;
+  // 텍스트를 문장 단위 청크로 분할 (끊김 방지)
+  function splitChunks(text) {
+    // 문장 끝(. ! ? 줄바꿈)을 기준으로 200자 내외로 자름
+    const chunks = [];
+    const sentences = text.split(/(?<=[.!?\n])\s*/);
+    let current = '';
+    for (const s of sentences) {
+      if ((current + s).length > 200 && current) {
+        chunks.push(current.trim());
+        current = s;
+      } else {
+        current += s + ' ';
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.filter(c => c.length > 0);
+  }
+
+  let ttsChunks = [];
+  let ttsChunkIndex = 0;
+  let ttsChunkCharOffset = 0; // 현재 청크 시작 위치
 
   function ttsSpeak(fromChar = 0) {
     speechSynthesis.cancel();
-    clearInterval(ttsResumeTimer);
-    const text = ttsText.slice(fromChar);
-    if (!text.trim()) return;
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = 'ko-KR';
-    utt.rate = ttsRate;
-    const voice = ttsGetVoice();
-    if (voice) utt.voice = voice;
-    utt.onboundary = (e) => {
-      ttsCharIndex = fromChar + e.charIndex;
-      ttsUpdateUI();
-    };
-    utt.onend = () => {
-      ttsPlaying = false;
-      ttsElapsed = 0; ttsStartTime = null; ttsCharIndex = 0;
-      clearInterval(ttsTimer); clearInterval(ttsResumeTimer);
-      ttsUpdateUI();
-    };
-    utt.onerror = (e) => {
-      if (e.error === 'interrupted') return; // cancel()로 인한 정상 중단
-      ttsPlaying = false; clearInterval(ttsTimer); clearInterval(ttsResumeTimer);
-      ttsUpdateUI();
-    };
-    ttsCharIndex = fromChar;
-    ttsStartTime = Date.now();
-    speechSynthesis.speak(utt);
-    ttsPlaying = true;
-    clearInterval(ttsTimer);
-    ttsTimer = setInterval(ttsUpdateUI, 500);
-    // Chrome 버그 수정: 긴 텍스트가 ~15초 후 멈추는 현상 방지
-    ttsResumeTimer = setInterval(() => {
-      if (speechSynthesis.speaking && !speechSynthesis.paused) {
-        speechSynthesis.pause();
-        speechSynthesis.resume();
-      }
-    }, 10000);
 
-    // Media Session API — 잠금화면/알림바 컨트롤
+    // 백그라운드 오디오 — 반드시 사용자 인터랙션 후 생성
+    if (!window._bgAudioCtx) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // 짧은 무음 버퍼를 반복 재생해 오디오 세션 유지
+        function playKeepAlive() {
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.onended = () => { if (ttsPlaying) playKeepAlive(); };
+          src.start();
+        }
+        playKeepAlive();
+        window._bgAudioCtx = ctx;
+      } catch(e) {}
+    }
+
+    // 청크 구성
+    const fullText = ttsText.slice(fromChar);
+    if (!fullText.trim()) return;
+    ttsChunks = splitChunks(fullText);
+    ttsChunkIndex = 0;
+    ttsChunkCharOffset = fromChar;
+    ttsCharIndex = fromChar;
+
+    // Media Session
     if ('mediaSession' in navigator) {
       const title = currentText.split('\n').find(l => l.trim()) || 'ByReader';
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -817,52 +850,94 @@
       navigator.mediaSession.playbackState = 'playing';
     }
 
-    // 백그라운드 오디오 유지 — 무음 오디오 컨텍스트로 오디오 세션 점유
-    if (!window._bgAudioCtx) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-        const src = ctx.createBufferSource();
-        src.buffer = buf; src.loop = true;
-        src.connect(ctx.destination);
-        src.start();
-        window._bgAudioCtx = ctx;
-      } catch(e) {}
-    }
-
+    ttsStartTime = Date.now();
+    ttsPlaying = true;
+    clearInterval(ttsTimer);
+    ttsTimer = setInterval(ttsUpdateUI, 500);
+    speakNextChunk();
     ttsUpdateUI();
   }
 
+  function speakNextChunk() {
+    if (!ttsPlaying || ttsChunkIndex >= ttsChunks.length) {
+      if (ttsChunkIndex >= ttsChunks.length) {
+        // 모두 완료
+        ttsPlaying = false; ttsElapsed = 0; ttsStartTime = null; ttsCharIndex = 0;
+        clearInterval(ttsTimer);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+        ttsUpdateUI();
+      }
+      return;
+    }
+    const chunk = ttsChunks[ttsChunkIndex];
+    const utt = new SpeechSynthesisUtterance(chunk);
+    utt.lang = 'ko-KR';
+    utt.rate = ttsRate;
+    const voice = ttsGetVoice();
+    if (voice) utt.voice = voice;
+
+    utt.onboundary = (e) => {
+      ttsCharIndex = ttsChunkCharOffset + e.charIndex;
+      ttsUpdateUI();
+    };
+    utt.onend = () => {
+      if (!ttsPlaying) return;
+      ttsChunkCharOffset += chunk.length + 1;
+      ttsChunkIndex++;
+      speakNextChunk();
+    };
+    utt.onerror = (e) => {
+      if (e.error === 'interrupted') return;
+      ttsChunkIndex++;
+      speakNextChunk();
+    };
+    speechSynthesis.speak(utt);
+  }
+
   function ttsBarToggle() {
-    if (!currentText) return;
     const bar = document.getElementById('tts-bar');
-    const isVisible = bar.classList.toggle('visible');
-    document.getElementById('main').classList.toggle('tts-active', isVisible);
-    if (!isVisible) { speechSynthesis.cancel(); ttsPlaying = false; clearInterval(ttsTimer); }
+    const isVisible = bar.classList.contains('visible');
+    if (isVisible) {
+      // 닫기
+      bar.classList.remove('visible');
+      document.getElementById('main').classList.remove('tts-active');
+      document.getElementById('btn-tts').classList.remove('active');
+      speechSynthesis.cancel(); ttsPlaying = false; clearInterval(ttsTimer);
+    } else {
+      if (!currentText) return;
+      // 설정 패널 닫기 (5번 문제)
+      document.getElementById('mobile-settings').classList.remove('visible');
+      document.getElementById('btn-settings').classList.remove('active');
+      bar.classList.add('visible');
+      document.getElementById('main').classList.add('tts-active');
+    }
     ttsUpdateUI();
-    // 설정 패널이 열려있으면 위치 재계산
     setTimeout(updateMobileSettingsPos, 50);
   }
 
   function ttsToggle() {
     if (!currentText) return;
-    if (speechSynthesis.speaking && speechSynthesis.paused) {
-      speechSynthesis.resume();
+    // 일시정지 상태에서 재개
+    if (!ttsPlaying && ttsChunks.length > 0 && ttsChunkIndex < ttsChunks.length) {
       ttsStartTime = Date.now();
       ttsPlaying = true;
       clearInterval(ttsTimer);
       ttsTimer = setInterval(ttsUpdateUI, 500);
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      speakNextChunk();
       ttsUpdateUI(); return;
     }
-    if (speechSynthesis.speaking) {
-      speechSynthesis.pause();
-      ttsElapsed += (Date.now() - ttsStartTime) / 1000;
+    // 재생 중 → 일시정지
+    if (ttsPlaying) {
+      speechSynthesis.cancel();
+      ttsElapsed += ttsStartTime ? (Date.now() - ttsStartTime) / 1000 : 0;
       ttsStartTime = null;
       ttsPlaying = false;
       clearInterval(ttsTimer);
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       ttsUpdateUI(); return;
     }
+    // 처음 시작
     ttsText = markdownToPlain(currentText);
     ttsElapsed = 0; ttsCharIndex = 0;
     ttsSpeak(0);
@@ -871,7 +946,8 @@
   function ttsStop() {
     speechSynthesis.cancel();
     ttsPlaying = false; ttsCharIndex = 0; ttsElapsed = 0; ttsStartTime = null;
-    clearInterval(ttsTimer); clearInterval(ttsResumeTimer);
+    ttsChunks = []; ttsChunkIndex = 0; ttsChunkCharOffset = 0;
+    clearInterval(ttsTimer);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
     ttsUpdateUI();
   }
@@ -879,24 +955,23 @@
   function ttsSkip(seconds) {
     if (!ttsText) return;
     const wasPlaying = ttsPlaying;
-    speechSynthesis.cancel(); clearInterval(ttsTimer);
+    speechSynthesis.cancel(); clearInterval(ttsTimer); ttsPlaying = false;
     const elapsed = ttsElapsed + (ttsStartTime ? (Date.now() - ttsStartTime) / 1000 : 0);
     const newElapsed = Math.max(0, Math.min(elapsed + seconds, ttsTotal()));
-    const newChar = Math.floor(newElapsed * TTS_CPS * ttsRate);
-    ttsElapsed = newElapsed; ttsStartTime = null; ttsPlaying = false;
+    const newChar = Math.min(Math.floor(newElapsed * TTS_CPS * ttsRate), ttsText.length - 1);
+    ttsElapsed = newElapsed; ttsStartTime = null;
     if (wasPlaying) ttsSpeak(newChar);
     else { ttsCharIndex = newChar; ttsUpdateUI(); }
   }
 
   function ttsSeek(e) {
-    if (!ttsText) return;
+    if (!ttsText) { ttsText = markdownToPlain(currentText); }
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
     const newChar = Math.floor(pct * ttsText.length);
-    const newElapsed = pct * ttsTotal();
     const wasPlaying = ttsPlaying;
-    speechSynthesis.cancel(); clearInterval(ttsTimer);
-    ttsElapsed = newElapsed; ttsStartTime = null; ttsPlaying = false;
+    speechSynthesis.cancel(); clearInterval(ttsTimer); ttsPlaying = false;
+    ttsElapsed = pct * ttsTotal(); ttsStartTime = null;
     if (wasPlaying) ttsSpeak(newChar);
     else { ttsCharIndex = newChar; ttsUpdateUI(); }
   }
