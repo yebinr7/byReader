@@ -188,27 +188,58 @@
 
   /* 모바일 대응 */
   @media (max-width: 600px) {
+    /* 툴바를 하단으로 이동 */
     #toolbar {
-      height: auto; min-height: 52px; flex-wrap: wrap;
-      padding: 8px 12px; gap: 8px;
+      top: auto;
+      bottom: 0;
+      height: 52px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 0 12px;
+      gap: 10px;
+      justify-content: flex-start;
+      /* 홈 인디케이터 safe area */
+      padding-bottom: env(safe-area-inset-bottom);
+      height: calc(52px + env(safe-area-inset-bottom));
     }
-    .tb-group { gap: 6px; flex-wrap: wrap; }
+    #toolbar::-webkit-scrollbar { display: none; }
+
     .tb-label { display: none; }
     .divider { display: none; }
-    .tb-btn { font-size: 12px; padding: 6px 9px; }
-    select.tb-btn { max-width: 100px; }
-    #main { padding-top: 0; }
-    #reader-view { margin-top: 12px; padding: 0 4px; }
-    #start-view { margin-top: 12px; }
-    #tts-bar { height: auto; min-height: 52px; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
-    #tts-track { width: 100%; flex-basis: 100%; order: 10; }
-    #tts-voice-select { max-width: 120px; font-size: 12px; }
+    .tb-btn { font-size: 12px; padding: 6px 10px; flex-shrink: 0; }
+    select.tb-btn { max-width: 90px; }
+    input[type=range] { width: 60px; flex-shrink: 0; }
+
+    /* 상단 여백 제거, 하단 여백 확보 */
+    #main {
+      padding-top: 8px;
+      padding-bottom: calc(52px + env(safe-area-inset-bottom));
+    }
+    #progress { top: 0; }
+    #reader-view { margin-top: 8px; padding: 0 4px; }
+    #start-view { margin-top: 16px; }
+
+    /* TTS 바는 툴바 바로 위 */
+    #tts-bar {
+      bottom: calc(52px + env(safe-area-inset-bottom));
+      height: auto;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    #tts-track { width: 100%; flex-basis: 100%; order: -1; margin-bottom: 2px; }
+    #tts-voice-select { max-width: 110px; font-size: 12px; }
     #tts-time { font-size: 11px; }
+    #main.tts-active { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   }
 
-  /* Safe area (노치, 홈 인디케이터) */
-  #toolbar { padding-top: max(0px, env(safe-area-inset-top)); }
-  #tts-bar { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  /* 데스크탑 safe area */
+  @media (min-width: 601px) {
+    #toolbar { padding-top: max(0px, env(safe-area-inset-top)); }
+  }
 
   /* TTS 플레이어 바 */
   #tts-bar {
