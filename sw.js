@@ -1,4 +1,4 @@
-const CACHE = 'byreader-v2';
+const CACHE = 'byreader-v3';
 const ASSETS = [
   './ByReader.html',
   './app.webmanifest',
