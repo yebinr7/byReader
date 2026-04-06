@@ -252,6 +252,8 @@
     #tts-track { width: 100%; flex-basis: 100%; order: -1; }
     #tts-voice-select { max-width: 110px; font-size: 12px; }
     #tts-status { display: none; }
+
+    /* 설정 패널은 TTS 바 위로 — JS가 bottom 값 동적 조정 */
   }
 
   /* 데스크탑 safe area */
@@ -634,11 +636,22 @@
   });
 
   // 모바일 슬라이더 패널 토글
+  function updateMobileSettingsPos() {
+    const panel = document.getElementById('mobile-settings');
+    const toolbar = document.getElementById('toolbar');
+    const ttsBar = document.getElementById('tts-bar');
+    if (window.innerWidth > 600) return;
+    const toolbarH = toolbar.offsetHeight;
+    const ttsH = ttsBar.classList.contains('visible') ? ttsBar.offsetHeight : 0;
+    panel.style.bottom = (toolbarH + ttsH) + 'px';
+  }
+
   function toggleMobileSettings() {
     const panel = document.getElementById('mobile-settings');
     const btn = document.getElementById('btn-settings');
     const visible = panel.classList.toggle('visible');
     btn.classList.toggle('active', visible);
+    if (visible) updateMobileSettingsPos();
   }
 
   // 모바일/데스크탑 슬라이더 동기화
@@ -827,6 +840,8 @@
     document.getElementById('main').classList.toggle('tts-active', isVisible);
     if (!isVisible) { speechSynthesis.cancel(); ttsPlaying = false; clearInterval(ttsTimer); }
     ttsUpdateUI();
+    // 설정 패널이 열려있으면 위치 재계산
+    setTimeout(updateMobileSettingsPos, 50);
   }
 
   function ttsToggle() {
