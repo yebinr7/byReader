@@ -1,0 +1,14 @@
+{
+  "name": "ByReader",
+  "short_name": "ByReader",
+  "description": "몰입형 독서 리더기 — 바이오닉 리딩 · TTS · 포커스 모드",
+  "start_url": "./ByReader.html",
+  "display": "standalone",
+  "background_color": "#FDF6E3",
+  "theme_color": "#A67C52",
+  "orientation": "portrait-primary",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
