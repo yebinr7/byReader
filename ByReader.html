@@ -186,55 +186,72 @@
   #edit-badge { display: none; font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 7px; }
   #edit-badge.on { display: inline-block; }
 
-  /* 모바일 대응 */
+  /* 모바일 전용 슬라이더 패널 */
+  #mobile-settings {
+    display: none;
+  }
   @media (max-width: 600px) {
-    /* 툴바를 하단으로 이동 */
+    /* 슬라이더 그룹은 데스크탑에서만 */
+    .tb-sliders { display: none !important; }
+
+    /* 설정 버튼 표시 */
+    #btn-settings { display: inline-block !important; }
+
+    /* 툴바 하단 고정, 한 줄 가로 스크롤 */
     #toolbar {
-      top: auto;
-      bottom: 0;
-      height: 52px;
+      top: auto; bottom: 0;
+      height: calc(52px + env(safe-area-inset-bottom));
+      padding: 0 12px;
+      padding-bottom: env(safe-area-inset-bottom);
       flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
+      overflow-x: auto; overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
-      padding: 0 12px;
-      gap: 10px;
-      justify-content: flex-start;
-      /* 홈 인디케이터 safe area */
-      padding-bottom: env(safe-area-inset-bottom);
-      height: calc(52px + env(safe-area-inset-bottom));
+      justify-content: flex-start; gap: 6px;
     }
     #toolbar::-webkit-scrollbar { display: none; }
-
+    .tb-group { flex-shrink: 0; flex-wrap: nowrap; gap: 6px; }
     .tb-label { display: none; }
     .divider { display: none; }
     .tb-btn { font-size: 12px; padding: 6px 10px; flex-shrink: 0; }
-    select.tb-btn { max-width: 90px; }
-    input[type=range] { width: 60px; flex-shrink: 0; }
+    select.tb-btn { max-width: 88px; }
 
-    /* 상단 여백 제거, 하단 여백 확보 */
+    /* 모바일 슬라이더 패널 */
+    #mobile-settings {
+      display: none; position: fixed;
+      bottom: calc(52px + env(safe-area-inset-bottom));
+      left: 0; right: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 12px 20px; gap: 10px; flex-direction: column;
+      z-index: 102;
+    }
+    #mobile-settings.visible { display: flex; }
+    .ms-row { display: flex; align-items: center; gap: 12px; }
+    .ms-label { font-size: 12px; color: var(--text-faint); width: 30px; flex-shrink: 0; }
+    .ms-row input[type=range] { flex: 1; width: auto; }
+
+    /* 본문 여백 */
     #main {
       padding-top: 8px;
       padding-bottom: calc(52px + env(safe-area-inset-bottom));
     }
+    #main.tts-active {
+      padding-bottom: calc(110px + env(safe-area-inset-bottom));
+    }
     #progress { top: 0; }
-    #reader-view { margin-top: 8px; padding: 0 4px; }
+    #reader-view { margin-top: 8px; padding: 0 12px; }
     #start-view { margin-top: 16px; }
 
-    /* TTS 바는 툴바 바로 위 */
+    /* TTS 바 */
     #tts-bar {
       bottom: calc(52px + env(safe-area-inset-bottom));
-      height: auto;
-      flex-wrap: wrap;
-      padding: 8px 12px;
-      gap: 8px;
+      height: auto; flex-wrap: wrap;
+      padding: 8px 12px; gap: 8px;
     }
     #tts-bar.visible { display: flex; }
-    #tts-track { width: 100%; flex-basis: 100%; order: -1; margin-bottom: 2px; }
+    #tts-track { width: 100%; flex-basis: 100%; order: -1; }
     #tts-voice-select { max-width: 110px; font-size: 12px; }
-    #tts-time { font-size: 11px; }
-    #main.tts-active { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+    #tts-status { display: none; }
   }
 
   /* 데스크탑 safe area */
@@ -288,32 +305,31 @@
     <span id="word-count"></span>
   </div>
 
-  <div class="tb-group">
+  <div class="tb-group tb-sliders">
     <span class="tb-label">크기</span>
     <input type="range" min="14" max="26" value="18" oninput="setVar('--font-size',this.value+'px');saveSettings()">
   </div>
 
-  <div class="divider"></div>
+  <div class="divider tb-sliders"></div>
 
-  <div class="tb-group">
+  <div class="tb-group tb-sliders">
     <span class="tb-label">행간</span>
     <input type="range" min="140" max="260" value="195" oninput="setVar('--line-height',(this.value/100).toFixed(2));saveSettings()">
   </div>
 
-  <div class="divider"></div>
+  <div class="divider tb-sliders"></div>
 
-  <div class="tb-group">
+  <div class="tb-group tb-sliders">
     <span class="tb-label">너비</span>
     <input type="range" min="500" max="1200" value="920" oninput="setVar('--col-width',this.value+'px');saveSettings()">
   </div>
 
-  <div class="divider"></div>
+  <div class="divider tb-sliders"></div>
 
   <div class="tb-group">
-    <button class="tb-btn" id="btn-focus" onclick="toggleFocus()" title="방향키 위/아래로 줄 이동">포커스 (↓,↑)</button>
-    <button class="tb-btn" id="btn-bionic" onclick="toggleBionic()" title="단어 앞부분을 굵게 강조합니다">바이오닉</button>
-    <button class="tb-btn" id="btn-tts" onclick="ttsBarToggle()" title="TTS 플레이어 열기/닫기">🔊 TTS</button>
-    
+    <button class="tb-btn" id="btn-focus" onclick="toggleFocus()" title="방향키 위/아래로 줄 이동">포커스</button>
+    <button class="tb-btn" id="btn-bionic" onclick="toggleBionic()">바이오닉</button>
+    <button class="tb-btn" id="btn-tts" onclick="ttsBarToggle()">🔊 TTS</button>
     <select class="tb-btn" id="font-select" onchange="changeFont(this.value)">
       <option value="'Pretendard', sans-serif">프리텐다드</option>
       <option value="'Noto Sans KR', sans-serif">본고딕</option>
@@ -321,12 +337,28 @@
       <option value="'Gowun Dodum', sans-serif">고운 돋움</option>
       <option value="'D2Coding', monospace">D2Coding</option>
     </select>
-
     <select class="tb-btn" id="theme-select" onchange="changeTheme(this.value)">
       <option value="">라이트 톤</option>
       <option value="theme-ivory" selected>미색 노트</option>
       <option value="theme-dark">다크 모드</option>
     </select>
+    <button class="tb-btn" id="btn-settings" onclick="toggleMobileSettings()" style="display:none">⚙</button>
+  </div>
+</div>
+
+<!-- 모바일 전용 슬라이더 패널 -->
+<div id="mobile-settings">
+  <div class="ms-row">
+    <span class="ms-label">크기</span>
+    <input type="range" min="14" max="26" value="18" id="ms-size" oninput="setVar('--font-size',this.value+'px');syncSlider('ms-size',this);saveSettings()">
+  </div>
+  <div class="ms-row">
+    <span class="ms-label">행간</span>
+    <input type="range" min="140" max="260" value="195" id="ms-line" oninput="setVar('--line-height',(this.value/100).toFixed(2));syncSlider('ms-line',this);saveSettings()">
+  </div>
+  <div class="ms-row">
+    <span class="ms-label">너비</span>
+    <input type="range" min="500" max="1200" value="920" id="ms-width" oninput="setVar('--col-width',this.value+'px');syncSlider('ms-width',this);saveSettings()">
   </div>
 </div>
 
@@ -387,9 +419,9 @@
   function loadSettings() {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     if (!s) return;
-    if (s.fontSize)   { setVar('--font-size', s.fontSize);     document.querySelector('input[oninput*="font-size"]').value = parseInt(s.fontSize); }
-    if (s.lineHeight) { setVar('--line-height', s.lineHeight);  document.querySelector('input[oninput*="line-height"]').value = Math.round(parseFloat(s.lineHeight) * 100); }
-    if (s.colWidth)   { setVar('--col-width', s.colWidth);      document.querySelector('input[oninput*="col-width"]').value = parseInt(s.colWidth); }
+    if (s.fontSize)   { setVar('--font-size', s.fontSize);     document.querySelector('input[oninput*="font-size"]').value = parseInt(s.fontSize); document.getElementById('ms-size').value = parseInt(s.fontSize); }
+    if (s.lineHeight) { setVar('--line-height', s.lineHeight);  document.querySelector('input[oninput*="line-height"]').value = Math.round(parseFloat(s.lineHeight) * 100); document.getElementById('ms-line').value = Math.round(parseFloat(s.lineHeight) * 100); }
+    if (s.colWidth)   { setVar('--col-width', s.colWidth);      document.querySelector('input[oninput*="col-width"]').value = parseInt(s.colWidth); document.getElementById('ms-width').value = parseInt(s.colWidth); }
     if (s.fontFamily) { setVar('--font-family', s.fontFamily);  document.getElementById('font-select').value = s.fontFamily; }
     if (s.theme)      { document.getElementById('theme-select').value = s.theme; changeTheme(s.theme); }
   }
@@ -600,6 +632,21 @@
     const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
     document.getElementById('progress').style.width = (pct || 0) + '%';
   });
+
+  // 모바일 슬라이더 패널 토글
+  function toggleMobileSettings() {
+    const panel = document.getElementById('mobile-settings');
+    const btn = document.getElementById('btn-settings');
+    const visible = panel.classList.toggle('visible');
+    btn.classList.toggle('active', visible);
+  }
+
+  // 모바일/데스크탑 슬라이더 동기화
+  function syncSlider(mobileId, el) {
+    const map = { 'ms-size': 0, 'ms-line': 1, 'ms-width': 2 };
+    const desktopSliders = document.querySelectorAll('#toolbar input[type=range]');
+    if (map[mobileId] !== undefined) desktopSliders[map[mobileId]].value = el.value;
+  }
 
   loadSettings();
 
